@@ -233,6 +233,7 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
        <div class="admin-field"><label>الاسم الكامل</label><input id="admName"></div>
        <div class="admin-field"><label>الحالة الاجتماعية</label><select id="admSocial"><option>أعزب</option><option>متزوج</option><option>متزوج ويعول</option></select></div>
        <div class="admin-field"><label>الرقم الوطني</label><input id="admNationalId"></div>
+       <div class="admin-field"><label>الإدارة العامة</label><input id="admGeneralDepartment"></div>
        <div class="admin-field"><label>الإدارة</label><input id="admDepartment"></div>
        <div class="admin-field"><label>الدرجة الوظيفية</label><input id="admJobGrade"></div>
        <div class="admin-field"><label>مكان العمل</label><input id="admWorkplace"></div>
@@ -352,18 +353,26 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
 
    <!-- PERSONAL -->
    <div id="personal" class="subpage">
-    <div class="page-head"><div><h2>بياناتي الشخصية</h2><p>البيانات المسجلة لدى لجنة الرعاية الصحية</p></div></div>
+    <div class="page-head">
+     <div><h2>بياناتي الشخصية</h2><p>البيانات المسجلة لدى لجنة الرعاية الصحية</p></div>
+     <div style="display:flex;gap:8px;align-items:center">
+      <button id="personalEditBtn" class="admin-btn admin-light" type="button" onclick="togglePersonalEdit()">✏️ تعديل البيانات</button>
+      <button id="personalSaveBtn" class="admin-btn admin-primary hidden" type="button" onclick="savePersonalData()">💾 حفظ التعديلات</button>
+     </div>
+    </div>
     <div class="info-box"><div class="form-grid">
-     <div class="field"><label>الاسم الكامل</label><input id="personalName" class="readonly" readonly value="محمد خالد خماج"></div>
+     <div class="field"><label>الاسم الكامل</label><input id="personalName" class="readonly personal-editable" readonly value="محمد خالد خماج"></div>
      <div class="field"><label>الرقم الوظيفي</label><input id="personalId" class="readonly" readonly value="02546"></div>
-     <div class="field"><label>الرقم الوطني</label><input class="readonly" readonly value="غير متوفر في ملف البيانات"></div>
-     <div class="field"><label>الإدارة العامة</label><input class="readonly" readonly value="غير متوفر في ملف البيانات"></div>
-     <div class="field"><label>الإدارة</label><input class="readonly" readonly value="غير متوفر في ملف البيانات"></div>
-     <div class="field"><label>الدرجة الوظيفية</label><input class="readonly" readonly value="غير متوفر في ملف البيانات"></div>
+     <div class="field"><label>الرقم الوطني</label><input id="personalNationalId" class="readonly personal-editable" readonly value="غير محدد"></div>
+     <div class="field"><label>الإدارة العامة</label><input id="personalGeneralDepartment" class="readonly personal-editable" readonly value="غير محدد"></div>
+     <div class="field"><label>الإدارة</label><input id="personalDepartment" class="readonly personal-editable" readonly value="غير محدد"></div>
+     <div class="field"><label>الدرجة الوظيفية</label><input id="personalJobGrade" class="readonly personal-editable" readonly value="غير محدد"></div>
      <div class="field"><label>إجمالي القيم المسجلة</label><input id="personalTotal" class="readonly" readonly value="0 د.ل"></div>
      <div class="field"><label>المصروف وفق آخر سجل</label><input id="personalSpent" class="readonly" readonly value="0 د.ل"></div>
      <div class="field"><label>الرصيد المتبقي</label><input id="personalRemaining" class="readonly" readonly value="0 د.ل"></div>
-    </div></div>
+    </div>
+    <div id="personalSaveNote" class="admin-note hidden" style="margin-top:14px">يمكن تعديل البيانات الإدارية فقط. القيم المالية والرقم الوظيفي لا يمكن تعديلها من هذه الصفحة.</div>
+    </div>
    </div>
 
    <!-- FINANCIAL -->
@@ -500,7 +509,7 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
     </div>
    </div>
 
-<div class="footer">© جميع الحقوق محفوظة - محمد خالد خماج 2026</div>
+<div class="footer">© جميع الحقوق محفوظة © محمد خالد خماج</div>
   </main>
  </div>
 </section>
@@ -535,6 +544,7 @@ function normalizeEmployee(emp){
   emp.name=String(emp.name||"").trim();
   emp.social=String(emp.social||"أعزب");
   emp.nationalId=String(emp.nationalId||"").trim();
+  emp.generalDepartment=String(emp.generalDepartment||"").trim();
   emp.department=String(emp.department||"").trim();
   emp.jobGrade=String(emp.jobGrade||"").trim();
   emp.workplace=String(emp.workplace||"").trim();
@@ -615,6 +625,53 @@ function statusForRecord(r){
   return {text:"مستحق",cls:"pending"};
 }
 
+
+function togglePersonalEdit(){
+  const fields=document.querySelectorAll(".personal-editable");
+  const btn=document.getElementById("personalEditBtn");
+  const save=document.getElementById("personalSaveBtn");
+  const note=document.getElementById("personalSaveNote");
+  const editing=fields.length && !fields[0].readOnly;
+
+  fields.forEach(el=>{
+    el.readOnly=editing;
+    el.classList.toggle("readonly",!editing);
+  });
+
+  if(!editing){
+    btn.classList.add("hidden");
+    save.classList.remove("hidden");
+    note.classList.remove("hidden");
+    if(fields[0]) fields[0].focus();
+  }else{
+    btn.classList.remove("hidden");
+    save.classList.add("hidden");
+    note.classList.add("hidden");
+  }
+}
+
+function savePersonalData(){
+  const loggedId=localStorage.getItem("loggedInEmployee");
+  const emp=loggedId ? employeeIndex[loggedId] : null;
+  if(!emp){ alert("لم يتم العثور على بيانات الموظف الحالي."); return; }
+
+  emp.name=document.getElementById("personalName").value.trim();
+  emp.nationalId=document.getElementById("personalNationalId").value.trim();
+  emp.generalDepartment=document.getElementById("personalGeneralDepartment").value.trim();
+  emp.department=document.getElementById("personalDepartment").value.trim();
+  emp.jobGrade=document.getElementById("personalJobGrade").value.trim();
+
+  if(!emp.name){
+    alert("الاسم الكامل لا يمكن أن يكون فارغًا.");
+    return;
+  }
+
+  persistAdminData();
+  fillEmployeeDashboard(emp);
+  togglePersonalEdit();
+  alert("تم حفظ بياناتك بنجاح.");
+}
+
 function fillEmployeeDashboard(emp){
   const initial=getInitial(emp.name);
 
@@ -644,7 +701,10 @@ function fillEmployeeDashboard(emp){
   const fields={
     personalName:emp.name,
     personalId:emp.id,
-    personalSocial:emp.social || "غير متوفر",
+    personalNationalId:emp.nationalId || "غير محدد",
+    personalGeneralDepartment:emp.generalDepartment || "غير محدد",
+    personalDepartment:emp.department || "غير محدد",
+    personalJobGrade:emp.jobGrade || "غير محدد",
     personalTotal:formatMoney(emp.recordedTotal),
     personalSpent:formatMoney(emp.currentSpent),
     personalRemaining:formatMoney(emp.currentRemaining)
@@ -776,6 +836,7 @@ function selectAdminEmployee(id){
   document.getElementById("admName").value=emp.name;
   document.getElementById("admSocial").value=emp.social;
   document.getElementById("admNationalId").value=emp.nationalId||"";
+  document.getElementById("admGeneralDepartment").value=emp.generalDepartment||"";
   document.getElementById("admDepartment").value=emp.department||"";
   document.getElementById("admJobGrade").value=emp.jobGrade||"";
   document.getElementById("admWorkplace").value=emp.workplace||"";
@@ -813,6 +874,7 @@ function saveEmployeeMaster(){
   emp.name=document.getElementById("admName").value.trim();
   emp.social=document.getElementById("admSocial").value;
   emp.nationalId=document.getElementById("admNationalId").value.trim();
+  emp.generalDepartment=document.getElementById("admGeneralDepartment").value.trim();
   emp.department=document.getElementById("admDepartment").value.trim();
   emp.jobGrade=document.getElementById("admJobGrade").value.trim();
   emp.workplace=document.getElementById("admWorkplace").value.trim();
