@@ -342,9 +342,9 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
      <div class="panel">
       <div class="panel-head"><h3>الاستحقاقات</h3></div>
       <div class="entitlements">
-       <div class="entitlement"><div class="ent-left"><div class="ent-icon">♢</div><div><h4>علاج الأسنان</h4><p>الحد الأقصى: 3000 دينار سنوياً</p></div></div><span class="remaining dental-remaining">المتبقي 500 د.ل</span></div>
-       <div class="entitlement"><div class="ent-left"><div class="ent-icon">⌁</div><div><h4>النظارات</h4><p>الحد الأقصى: 300 دينار لكل فرد مشمول فالسنة</p></div></div><span class="remaining">المتبقي 180</span></div>
-       <div class="entitlement"><div class="ent-left"><div class="ent-icon" style="color:var(--purple);background:#f1edff">✣</div><div><h4>علاج العقم</h4><p>الحد الأقصى: 5,000 دينار سنويا</p></div></div><span class="remaining">المتبقي 800</span></div>
+       <div class="entitlement"><div class="ent-left"><div class="ent-icon">♢</div><div><h4>علاج الأسنان</h4><p>الحد الأقصى: 3000 دينار سنوياً</p></div></div><span class="remaining dental-remaining">المتبقي 3,000 د.ل</span></div>
+       <div class="entitlement"><div class="ent-left"><div class="ent-icon">⌁</div><div><h4>النظارات</h4><p>الحد الأقصى: 300 دينار لكل فرد مشمول فالسنة</p></div></div><span class="remaining glasses-remaining">المتبقي 300 د.ل</span></div>
+       <div class="entitlement"><div class="ent-left"><div class="ent-icon" style="color:var(--purple);background:#f1edff">✣</div><div><h4>علاج العقم</h4><p>الحد الأقصى: 5,000 دينار سنويا</p></div></div><span class="remaining fertility-remaining">المتبقي 5,000 د.ل</span></div>
       </div>
      </div>
     </div>
@@ -390,7 +390,7 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
 
    <!-- SERVICES -->
    <div id="dental" class="subpage"><div class="page-head"><div><h2>علاج الأسنان</h2><p>تفاصيل استحقاق علاج الأسنان</p></div></div>
-    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-dental">0 د.ل</span></div><p style="color:var(--muted)">إجمالي الأسنان المسجل في ملفك.</p></div></div>
+    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-dental">0 د.ل</span></div><p style="color:var(--muted)">إجمالي الأسنان المسجل في ملفك.</p><p class="remaining dental-remaining">المتبقي 3,000 د.ل</p></div></div>
 
 
    <div id="generalHealth" class="subpage">
@@ -400,10 +400,10 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
    </div>
 
    <div id="glasses" class="subpage"><div class="page-head"><div><h2>النظارات الطبية</h2><p>تفاصيل استحقاق النظارات</p></div></div>
-    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-glasses">0 د.ل</span></div><p style="color:var(--muted)">إجمالي النظارات المسجل في ملفك.</p></div></div>
+    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-glasses">0 د.ل</span></div><p style="color:var(--muted)">إجمالي النظارات المسجل في ملفك.</p><p class="remaining glasses-remaining">المتبقي 300 د.ل</p></div></div>
 
    <div id="fertility" class="subpage"><div class="page-head"><div><h2>علاج العقم</h2><p>تفاصيل الاستحقاق الخاص بعلاج العقم</p></div></div>
-    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-fertility">0 د.ل</span></div><p style="color:var(--muted)">إجمالي علاج العقم المسجل في ملفك.</p></div></div>
+    <div class="panel"><h3>القيمة المسجلة</h3><div class="stat-value"><span class="employee-fertility">0 د.ل</span></div><p style="color:var(--muted)">إجمالي علاج العقم المسجل في ملفك.</p><p class="remaining fertility-remaining">المتبقي 5,000 د.ل</p></div></div>
 
 
    <div id="chronic" class="subpage">
@@ -631,6 +631,41 @@ function serviceText(r){
   return services.length ? services.join(" + ") : "صحة عامة";
 }
 
+
+function currentYearServiceUsed(emp, field){
+  const year = new Date().getFullYear();
+  return (emp.records || []).reduce((sum, r) => {
+    if(!r.date || !r.date.startsWith(String(year) + "-")) return sum;
+    return sum + Number(r[field] || 0);
+  }, 0);
+}
+
+function updateEntitlements(emp){
+  const limits = {
+    dental: 3000,
+    glasses: 300,
+    infertility: 5000
+  };
+
+  const dentalUsed = currentYearServiceUsed(emp, "dental");
+  const glassesUsed = currentYearServiceUsed(emp, "glasses");
+  const infertilityUsed = currentYearServiceUsed(emp, "infertility");
+
+  const dentalRemaining = Math.max(0, limits.dental - dentalUsed);
+  const glassesRemaining = Math.max(0, limits.glasses - glassesUsed);
+  const infertilityRemaining = Math.max(0, limits.infertility - infertilityUsed);
+
+  document.querySelectorAll(".dental-remaining").forEach(el =>
+    el.textContent = "المتبقي " + formatMoney(dentalRemaining)
+  );
+  document.querySelectorAll(".glasses-remaining").forEach(el =>
+    el.textContent = "المتبقي " + formatMoney(glassesRemaining)
+  );
+  document.querySelectorAll(".fertility-remaining").forEach(el =>
+    el.textContent = "المتبقي " + formatMoney(infertilityRemaining)
+  );
+}
+
 function statusForRecord(r){
    return {text:"منفّذ",cls:"done"};
  }
@@ -683,6 +718,7 @@ function savePersonalData(){
 }
 
 function fillEmployeeDashboard(emp){
+  updateEntitlements(emp);
   updateCurrentMonthCard();
   const initial=getInitial(emp.name);
 
