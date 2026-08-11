@@ -651,7 +651,7 @@ function togglePersonalEdit(){
 }
 
 function savePersonalData(){
-  const loggedId=localStorage.getItem("loggedInEmployee");
+  const loggedId=sessionStorage.getItem("loggedInEmployee");
   const emp=loggedId ? employeeIndex[loggedId] : null;
   if(!emp){ alert("لم يتم العثور على بيانات الموظف الحالي."); return; }
 
@@ -918,7 +918,7 @@ function newEmployee(){
   const emp=normalizeEmployee({id:clean,name,social,ceiling,records:[]}); employeeData.push(emp); rebuildAdminIndex(); renderAdminEmployees(); selectAdminEmployee(clean);
 }
 function refreshCurrentUserIfNeeded(){
-  const saved=localStorage.getItem("loggedInEmployee");
+  const saved=sessionStorage.getItem("loggedInEmployee");
   if(saved && employeeIndex[saved])fillEmployeeDashboard(employeeIndex[saved]);
 }
 function exportAdminData(){
@@ -955,13 +955,13 @@ function login(){
 
   err.classList.add("hidden");
   fillEmployeeDashboard(emp);
-  localStorage.setItem("loggedInEmployee",u);
+  sessionStorage.setItem("loggedInEmployee",u);
   document.getElementById("loginPage").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
 }
 
 function logout(){
-  localStorage.removeItem("loggedInEmployee");
+  sessionStorage.removeItem("loggedInEmployee");
   document.getElementById("app").classList.add("hidden");
   document.getElementById("loginPage").classList.remove("hidden");
   document.getElementById("employeeId").value="";
@@ -993,7 +993,7 @@ window.addEventListener("DOMContentLoaded",()=>{
     renderAdminEmployees();
     return;
   }
-  const saved=localStorage.getItem("loggedInEmployee");
+  const saved=sessionStorage.getItem("loggedInEmployee");
   if(saved && employeeIndex[saved]){
     fillEmployeeDashboard(employeeIndex[saved]);
     document.getElementById("loginPage").classList.add("hidden");
