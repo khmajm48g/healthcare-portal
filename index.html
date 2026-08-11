@@ -522,6 +522,18 @@ const ADMIN_USER = "admin";
 const ADMIN_PASS = "HC2026!";
 let adminSelectedId = null;
 
+
+function updateCurrentMonthCard(){
+  const now = new Date();
+  const months = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  document.querySelectorAll(".current-month").forEach(el=>{
+    el.textContent = months[now.getMonth()];
+  });
+  document.querySelectorAll(".current-year").forEach(el=>{
+    el.textContent = now.getFullYear();
+  });
+}
+
 function loadAdminData(){
   try{
     const saved=localStorage.getItem("healthcare_admin_data_v1");
@@ -673,6 +685,7 @@ function savePersonalData(){
 }
 
 function fillEmployeeDashboard(emp){
+  updateCurrentMonthCard();
   const initial=getInitial(emp.name);
 
   document.querySelectorAll(".employee-name").forEach(x=>x.textContent=emp.name);
@@ -695,8 +708,6 @@ function fillEmployeeDashboard(emp){
   document.querySelectorAll(".employee-avatar").forEach(x=>x.textContent=initial);
 
   const latestDate=(emp.records.map(r=>r.date).filter(Boolean).sort().slice(-1)[0] || "");
-  document.querySelectorAll(".current-month").forEach(x=>x.textContent=monthName(latestDate));
-  document.querySelectorAll(".current-year").forEach(x=>x.textContent=latestDate ? latestDate.split("-")[0] : "—");
 
   const fields={
     personalName:emp.name,
