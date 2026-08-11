@@ -332,12 +332,11 @@ th,td{padding:12px 9px;text-align:right;border-bottom:1px solid #edf0f5}tbody tr
      <div class="panel">
       <div class="panel-head"><h3>آخر المعاملات</h3><button class="view-all" onclick="showPage('transactions',null)">عرض الكل</button></div>
       <table><thead><tr><th>التاريخ</th><th>النوع</th><th>الوصف</th><th>القيمة</th><th>الحالة</th></tr></thead>
-       <tbody>
-        <tr><td>—</td><td>صحة عامة</td><td>السجل الحالي</td><td><span class="employee-health">0 د.ل</span></td><td><span class="badge pending">حسب السجل</span></td></tr>
-        <tr><td>2026-07-12</td><td>أسنان</td><td>مستندات علاج أسنان</td><td>180 د.ل</td><td><span class="badge done">منفذ</span></td></tr>
-        <tr><td>2026-06-20</td><td>نظارات</td><td>فاتورة نظارة طبية</td><td>220 د.ل</td><td><span class="badge done">منفذ</span></td></tr>
-        <tr><td>2026-05-18</td><td>صحة عامة</td><td>جلسة علاج طبيعي</td><td>150 د.ل</td><td><span class="badge done">منفذ</span></td></tr>
-       </tbody>
+       <tbody> 
+        <tr><td>2026-05-10</td><td>صحة</td><td>صحة عامة 531 د.ل</td><td>531 د.ل</td><td><span class="badge done">منفّذ</span></td></tr>
+        <tr><td>2026-01-07</td><td>صحة</td><td>صحة عامة 630 د.ل + أسنان 1,200 د.ل</td><td>1,830 د.ل</td><td><span class="badge done">منفّذ</span></td></tr>
+        <tr><td>2026-01-07</td><td>صحة</td><td>صحة عامة 1,378 د.ل</td><td>1,378 د.ل</td><td><span class="badge done">منفّذ</span></td></tr>
+</tbody>
       </table>
      </div>
      <div class="panel">
@@ -633,9 +632,8 @@ function serviceText(r){
 }
 
 function statusForRecord(r){
-  if(r.remaining <= 0) return {text:"مستنفد",cls:"pending"};
-  return {text:"مستحق",cls:"pending"};
-}
+   return {text:"منفّذ",cls:"done"};
+ }
 
 
 function togglePersonalEdit(){
