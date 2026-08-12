@@ -1015,32 +1015,210 @@ function importAdminData(event){
   }; reader.readAsText(file); event.target.value="";
 }
 
-function login(){
+async function callEmployeeApi(action, payload){
+  return new Promise(function(resolve, reject){
+    var cb = "healthcareEmployeeCb_" + Date.now() + "_" + Math.floor(Math.random()*100000);
+    var script = document.createElement("script");
+    var finished = false;
+
+    function cleanup(){
+      try { delete window[cb]; script.remove(); } catch(e) {}
+    }
+    function done(data){
+      if(finished)return;
+      finished=true;
+      cleanup();
+      resolve(data);
+    }
+
+    window[cb]=done;
+
+    var params = new URLSearchParams({action: action, callback: cb});
+    Object.keys(payload || {}).forEach(function(k){
+      params.set(k, payload[k] == null ? "" : String(payload[k]));
+    });
+
+    script.src = API_URL + "?" + params.toString();
+    script.onerror=function(){
+      if(finished)return;
+      finished=true;
+      cleanup();
+      reject(new Error("API_FETCH_FAILED"));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function normalizeEmployeeApiResult(data, fallbackId){
+  if(!data || !data.ok || !data.employee) return null;
+
+  const e=data.employee;
+  const entitlements=Array.isArray(data.entitlements) ? data.entitlements : [];
+  const tx=Array.isArray(data.recentTransactions) ? data.recentTransactions : [];
+
+  const findEnt=function(names){
+    return entitlements.find(function(x){
+      return names.includes(String(x.serviceType||""));
+    }) || {};
+  };
+
+  const healthEnt=findEnt(["الصحة العامة","الصحة"]);
+  const dentalEnt=findEnt(["الأسنان","علاج الأسنان"]);
+  const glassesEnt=findEnt(["نظارات","النظارات"]);
+  const fertilityEnt=findEnt(["العقم","علاج العقم"]);
+  const chronicEnt=findEnt(["المزمنة والأورام","المزمنة","الأورام"]);
+
+  const records=tx.map(function(t){
+    const service=String(t.serviceType||"");
+    const amount=Number(t.amount||t.value||0);
+    return {
+      date:t.date||"",
+      value:amount,
+      health:service.includes("صحة") ? amount : 0,
+      dental:service.includes("أسنان") ? amount : 0,
+      glasses:service.includes("نظارات") ? amount : 0,
+      infertility:service.includes("عقم") ? amount : 0,
+      chronic:(service.includes("مزمنة")||service.includes("أورام")) ? amount : 0,
+      spent:Number(t.paid||t.spent||0),
+      remaining:Number(t.remaining||0),
+      ceiling:Number(
+        t.ceiling ||
+        (service.includes("أسنان") ? dentalEnt.ceiling :
+        service.includes("نظارات") ? glassesEnt.ceiling :
+        service.includes("عقم") ? fertilityEnt.ceiling :
+        (service.includes("مزمنة")||service.includes("أورام")) ? chronicEnt.ceiling :
+        healthEnt.ceiling) || 0
+      ),
+      secure:"",
+      loan:""
+    };
+  });
+
+  const emp={
+    id:String(e.employeeId||fallbackId||"").trim().padStart(5,"0"),
+    name:String(e.fullName||"").trim(),
+    social:String(e.maritalStatus||"أعزب"),
+    nationalId:String(e.nationalId||"").trim(),
+    generalDepartment:String(e.generalDepartment||"").trim(),
+    department:String(e.department||"").trim(),
+    jobGrade:String(e.jobGrade||"").trim(),
+    workplace:String(e.branch||"").trim(),
+    ceiling:Number(healthEnt.ceiling||10000),
+    records:records
+  };
+
+  recomputeEmployee(emp);
+
+  // Keep the server's current figures when they are available.
+  const latest=records.length ? records.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0] : null;
+  if(latest){
+    emp.currentSpent=Number(latest.spent||0);
+    emp.currentRemaining=Number(latest.remaining||Math.max(0,emp.ceiling-emp.currentSpent));
+  }
+  return emp;
+}
+
+async function fetchEmployeeDashboard(token, employeeId){
+  const actions=["getEmployeeDashboard","getEmployee","getEmployeeData"];
+  let lastError=null;
+
+  for(const action of actions){
+    try{
+      const result=await callEmployeeApi(action,{token:token,employeeId:employeeId,id:employeeId});
+      if(result && result.ok && result.employee){
+        return result;
+      }
+      lastError=new Error((result&&result.error)||"EMPLOYEE_DATA_FAILED");
+    }catch(e){
+      lastError=e;
+    }
+  }
+
+  throw lastError || new Error("EMPLOYEE_DATA_FAILED");
+}
+
+async function login(){
   const u=document.getElementById("employeeId").value.trim().padStart(5,"0");
   const p=document.getElementById("nationalId").value.trim();
   const err=document.getElementById("loginError");
-  const emp=employeeIndex[u];
-
-  if(!emp){
-    err.textContent="الرقم الوظيفي غير موجود في ملف البيانات.";
-    err.classList.remove("hidden");
-    return;
-  }
-  if(p!==u){
-    err.textContent="كلمة المرور غير صحيحة. كلمة المرور هي الرقم الوظيفي نفسه.";
-    err.classList.remove("hidden");
-    return;
-  }
+  const btn=document.querySelector(".login-btn");
 
   err.classList.add("hidden");
-  fillEmployeeDashboard(emp);
-  sessionStorage.setItem("loggedInEmployee",u);
-  document.getElementById("loginPage").classList.add("hidden");
-  document.getElementById("app").classList.remove("hidden");
+  if(!u || !p){
+    err.textContent="أدخل الرقم الوظيفي وكلمة المرور.";
+    err.classList.remove("hidden");
+    return;
+  }
+
+  if(btn)btn.disabled=true;
+
+  try{
+    // The employee is authenticated by the server.
+    // Do not search employeeIndex or any local/old data here.
+    const auth=await callEmployeeApi("login",{employeeId:u,password:p,id:u});
+
+    if(!auth || !auth.ok || !auth.token){
+      throw new Error((auth&&auth.error)||"INVALID_CREDENTIALS");
+    }
+
+    const token=auth.token;
+    const dashboard=await fetchEmployeeDashboard(token,u);
+    const emp=normalizeEmployeeApiResult(dashboard,u);
+
+    if(!emp){
+      throw new Error("EMPLOYEE_DATA_FAILED");
+    }
+
+    employeeData=[emp];
+    employeeIndex={[emp.id]:emp};
+
+    sessionStorage.setItem("loggedInEmployee",emp.id);
+    sessionStorage.setItem("healthcare_employee_token",token);
+
+    fillEmployeeDashboard(emp);
+    document.getElementById("loginPage").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+
+  }catch(e){
+    console.error("Employee login failed:",e);
+    err.textContent =
+      e.message==="INVALID_CREDENTIALS"
+      ? "الرقم الوظيفي أو كلمة المرور غير صحيحة."
+      : "تعذر الاتصال بقاعدة البيانات. تأكد من نشر Apps Script ثم حاول مرة أخرى.";
+    err.classList.remove("hidden");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
+
+async function restoreEmployeeSession(){
+  const saved=sessionStorage.getItem("loggedInEmployee");
+  const token=sessionStorage.getItem("healthcare_employee_token");
+  if(!saved || !token)return false;
+
+  try{
+    const dashboard=await fetchEmployeeDashboard(token,saved);
+    const emp=normalizeEmployeeApiResult(dashboard,saved);
+    if(!emp)throw new Error("EMPLOYEE_DATA_FAILED");
+
+    employeeData=[emp];
+    employeeIndex={[emp.id]:emp};
+    fillEmployeeDashboard(emp);
+    document.getElementById("loginPage").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    return true;
+  }catch(e){
+    sessionStorage.removeItem("loggedInEmployee");
+    sessionStorage.removeItem("healthcare_employee_token");
+    return false;
+  }
 }
 
 function logout(){
   sessionStorage.removeItem("loggedInEmployee");
+  sessionStorage.removeItem("healthcare_employee_token");
+  employeeData=[];
+  employeeIndex={};
   document.getElementById("app").classList.add("hidden");
   document.getElementById("loginPage").classList.remove("hidden");
   document.getElementById("employeeId").value="";
@@ -1073,12 +1251,7 @@ window.addEventListener("DOMContentLoaded",()=>{
     loadAdminDataFromServer();
     return;
   }
-  const saved=sessionStorage.getItem("loggedInEmployee");
-  if(saved && employeeIndex[saved]){
-    fillEmployeeDashboard(employeeIndex[saved]);
-    document.getElementById("loginPage").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-  }
+  restoreEmployeeSession();
 });
 </script>
 
