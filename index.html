@@ -1090,7 +1090,9 @@ function normalizeEmployeeApiResult(data, fallbackId){
         healthEnt.ceiling) || 0
       ),
       secure:"",
-      loan:""
+      loan:"",
+      sourceSheet:String(t.sourceSheet||""),
+      sourceRow:String(t.sourceRow||"")
     };
   });
 
@@ -1123,7 +1125,12 @@ function normalizeEmployeeApiResult(data, fallbackId){
   emp.recordedTotal = totalAmount;
   emp.currentSpent = totalPaid;
   emp.currentRemaining = Math.max(0, Number(emp.ceiling || 10000) - totalPaid);
-  emp.transactionCount = records.length;
+  const logicalTransactionKeys = {};
+  records.forEach(function(r){
+    const key = String(r.sourceSheet || '') + ':' + String(r.sourceRow || '');
+    logicalTransactionKeys[key] = true;
+  });
+  emp.transactionCount = Object.keys(logicalTransactionKeys).length;
 
   return emp;
 }
