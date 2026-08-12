@@ -1119,12 +1119,12 @@ function normalizeEmployeeApiResult(data, fallbackId){
 }
 
 async function fetchEmployeeDashboard(token, employeeId){
-  const actions=["getEmployeeDashboard","getEmployee","getEmployeeData"];
+  const actions=["getEmployeeDashboard"];
   let lastError=null;
 
   for(const action of actions){
     try{
-      const result=await callEmployeeApi(action,{token:token,employeeId:employeeId,id:employeeId});
+      const result=await callEmployeeApi(action,{token:token});
       if(result && result.ok && result.employee){
         return result;
       }
@@ -1155,7 +1155,7 @@ async function login(){
   try{
     // The employee is authenticated by the server.
     // Do not search employeeIndex or any local/old data here.
-    const auth=await callEmployeeApi("login",{employeeId:u,password:p,id:u});
+    const auth=await callEmployeeApi("loginEmployee",{employeeId:u,password:p});
 
     if(!auth || !auth.ok || !auth.token){
       throw new Error((auth&&auth.error)||"INVALID_CREDENTIALS");
