@@ -981,32 +981,119 @@ function importAdminData(event){
   }; reader.readAsText(file); event.target.value="";
 }
 
-function login(){
+const API_URL = "https://script.google.com/macros/s/AKfycbxLrJUa8jRREg7YoUU5Gie1K1RCWwNJx_E1vw7dYwdnIpoJoWY1SOu6RuVFjccnpqAX/exec";
+
+function apiGet(action, params={}){
+  return new Promise((resolve,reject)=>{
+    const callback="healthcareApi_"+Date.now()+"_"+Math.random().toString(36).slice(2);
+    const script=document.createElement("script");
+    const query=new URLSearchParams({action,callback,...params});
+    const timer=setTimeout(()=>{cleanup();reject(new Error("انتهت مهلة الاتصال بالخادم."));},15000);
+
+    function cleanup(){
+      clearTimeout(timer);
+      script.remove();
+      try{delete window[callback];}catch(e){window[callback]=undefined;}
+    }
+
+    window[callback]=(data)=>{cleanup();resolve(data);};
+    script.onerror=()=>{cleanup();reject(new Error("تعذر الاتصال بخادم البيانات."));};
+    script.src=API_URL+"?"+query.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function mapApiDashboard(data){
+  const ent=data.entitlements||[];
+  const tx=(data.recentTransactions||[]).map(r=>({
+    date:r.date||"",
+    value:Number(r.amount||0),
+    spent:Number(r.paid||r.amount||0),
+    remaining:Number(r.remaining||0),
+    health:r.serviceType==="الصحة العامة"?Number(r.paid||r.amount||0):0,
+    dental:r.serviceType==="الأسنان"?Number(r.paid||r.amount||0):0,
+    glasses:r.serviceType==="نظارات"?Number(r.paid||r.amount||0):0,
+    infertility:r.serviceType==="العقم"?Number(r.paid||r.amount||0):0,
+    chronic:r.serviceType==="المزمنة والأورام"?Number(r.paid||r.amount||0):0,
+    ceiling:Number((ent.find(x=>x.serviceType==="الصحة العامة")||{}).ceiling||0)
+  }));
+
+  const used={health:0,dental:0,glasses:0,infertility:0,chronic:0};
+  ent.forEach(x=>{
+    const v=Number(x.spent||0);
+    if(x.serviceType==="الصحة العامة")used.health=v;
+    if(x.serviceType==="الأسنان")used.dental=v;
+    if(x.serviceType==="نظارات")used.glasses=v;
+    if(x.serviceType==="العقم")used.infertility=v;
+    if(x.serviceType==="المزمنة والأورام")used.chronic=v;
+  });
+
+  const healthEnt=ent.find(x=>x.serviceType==="الصحة العامة")||{};
+  const totalSpent=ent.reduce((s,x)=>s+Number(x.spent||0),0);
+
+  return normalizeEmployee({
+    id:data.employee.employeeId,
+    name:data.employee.fullName,
+    social:data.employee.maritalStatus||"غير متوفر",
+    nationalId:"",
+    generalDepartment:data.employee.branch||"",
+    department:"",
+    jobGrade:"",
+    workplace:data.employee.branch||"",
+    ceiling:Number(healthEnt.ceiling||0),
+    records:tx,
+    health:used.health,
+    dental:used.dental,
+    glasses:used.glasses,
+    infertility:used.infertility,
+    chronic:used.chronic,
+    currentSpent:totalSpent,
+    currentRemaining:Number(healthEnt.remaining||0)
+  });
+}
+
+async function login(){
   const u=document.getElementById("employeeId").value.trim().padStart(5,"0");
   const p=document.getElementById("nationalId").value.trim();
   const err=document.getElementById("loginError");
-  const emp=employeeIndex[u];
-
-  if(!emp){
-    err.textContent="الرقم الوظيفي غير موجود في ملف البيانات.";
-    err.classList.remove("hidden");
-    return;
-  }
-  if(p!==u){
-    err.textContent="كلمة المرور غير صحيحة. كلمة المرور هي الرقم الوظيفي نفسه.";
-    err.classList.remove("hidden");
-    return;
-  }
+  const btn=document.querySelector(".login-btn");
 
   err.classList.add("hidden");
-  fillEmployeeDashboard(emp);
-  sessionStorage.setItem("loggedInEmployee",u);
-  document.getElementById("loginPage").classList.add("hidden");
-  document.getElementById("app").classList.remove("hidden");
+  if(btn)btn.disabled=true;
+
+  try{
+    const loginResult=await apiGet("loginEmployee",{employeeId:u,password:p});
+    if(!loginResult || !loginResult.ok){
+      err.textContent="الرقم الوظيفي أو كلمة المرور غير صحيحة.";
+      err.classList.remove("hidden");
+      return;
+    }
+
+    const dashboard=await apiGet("getEmployeeDashboard",{token:loginResult.token});
+    if(!dashboard || !dashboard.ok){
+      throw new Error("تعذر تحميل بيانات الموظف.");
+    }
+
+    const emp=mapApiDashboard(dashboard);
+    employeeIndex[u]=emp;
+
+    sessionStorage.setItem("loggedInEmployee",u);
+    sessionStorage.setItem("healthcare_api_token",loginResult.token);
+
+    fillEmployeeDashboard(emp);
+    document.getElementById("loginPage").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+  }catch(e){
+    err.textContent=e.message||"تعذر الاتصال بخادم البيانات. حاول مرة أخرى.";
+    err.classList.remove("hidden");
+  }finally{
+    if(btn)btn.disabled=false;
+  }
 }
 
 function logout(){
   sessionStorage.removeItem("loggedInEmployee");
+  sessionStorage.removeItem("healthcare_api_token");
   document.getElementById("app").classList.add("hidden");
   document.getElementById("loginPage").classList.remove("hidden");
   document.getElementById("employeeId").value="";
@@ -1039,10 +1126,21 @@ window.addEventListener("DOMContentLoaded",()=>{
     return;
   }
   const saved=sessionStorage.getItem("loggedInEmployee");
-  if(saved && employeeIndex[saved]){
-    fillEmployeeDashboard(employeeIndex[saved]);
-    document.getElementById("loginPage").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
+  const token=sessionStorage.getItem("healthcare_api_token");
+  if(saved && token){
+    apiGet("getEmployeeDashboard",{token})
+      .then(data=>{
+        if(!data || !data.ok) throw new Error();
+        const emp=mapApiDashboard(data);
+        employeeIndex[saved]=emp;
+        fillEmployeeDashboard(emp);
+        document.getElementById("loginPage").classList.add("hidden");
+        document.getElementById("app").classList.remove("hidden");
+      })
+      .catch(()=>{
+        sessionStorage.removeItem("loggedInEmployee");
+        sessionStorage.removeItem("healthcare_api_token");
+      });
   }
 });
 </script>
