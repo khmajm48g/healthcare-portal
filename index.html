@@ -1068,32 +1068,43 @@ function normalizeEmployeeApiResult(data, fallbackId){
   const fertilityEnt=findEnt(["العقم","علاج العقم"]);
   const chronicEnt=findEnt(["المزمنة والأورام","المزمنة","الأورام"]);
 
-  const records=tx.map(function(t){
+  // Group service components that came from the SAME original financial row.
+  // One Excel row = one financial transaction, even when it contains multiple services.
+  const grouped={};
+  tx.forEach(function(t){
+    const key=String(t.sourceSheet||"") + ":" + String(t.sourceRow||"");
+    if(!grouped[key]){
+      grouped[key]={
+        date:t.date||"",
+        value:0,
+        health:0, dental:0, glasses:0, infertility:0, chronic:0,
+        spent:0, remaining:Number(t.remaining||0),
+        ceiling:Number(healthEnt.ceiling||0),
+        secure:"", loan:"",
+        sourceSheet:String(t.sourceSheet||""),
+        sourceRow:String(t.sourceRow||""),
+        services:[]
+      };
+    }
+    const g=grouped[key];
     const service=String(t.serviceType||"");
     const amount=Number(t.amount||t.value||0);
-    return {
-      date:t.date||"",
-      value:amount,
-      health:service.includes("صحة") ? amount : 0,
-      dental:service.includes("أسنان") ? amount : 0,
-      glasses:service.includes("نظارات") ? amount : 0,
-      infertility:service.includes("عقم") ? amount : 0,
-      chronic:(service.includes("مزمنة")||service.includes("أورام")) ? amount : 0,
-      spent:Number(t.paid||t.spent||0),
-      remaining:Number(t.remaining||0),
-      ceiling:Number(
-        t.ceiling ||
-        (service.includes("أسنان") ? dentalEnt.ceiling :
-        service.includes("نظارات") ? glassesEnt.ceiling :
-        service.includes("عقم") ? fertilityEnt.ceiling :
-        (service.includes("مزمنة")||service.includes("أورام")) ? chronicEnt.ceiling :
-        healthEnt.ceiling) || 0
-      ),
-      secure:"",
-      loan:"",
-      sourceSheet:String(t.sourceSheet||""),
-      sourceRow:String(t.sourceRow||"")
-    };
+    g.value += amount;
+    g.spent += Number(t.paid||t.spent||0);
+    if(service.includes("صحة")) g.health += amount;
+    if(service.includes("أسنان")) g.dental += amount;
+    if(service.includes("نظارات")) g.glasses += amount;
+    if(service.includes("عقم")) g.infertility += amount;
+    if(service.includes("مزمنة")||service.includes("أورام")) g.chronic += amount;
+    if(service && !g.services.includes(service)) g.services.push(service);
+  });
+
+  const records=Object.keys(grouped).map(function(key){
+    const g=grouped[key];
+    g.serviceType=g.services.join(" + ");
+    return g;
+  }).sort(function(a,b){
+    return String(b.date).localeCompare(String(a.date));
   });
 
   const emp={
