@@ -1110,11 +1110,21 @@ function normalizeEmployeeApiResult(data, fallbackId){
   recomputeEmployee(emp);
 
   // Keep the server's current figures when they are available.
-  const latest=records.length ? records.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0] : null;
-  if(latest){
-    emp.currentSpent=Number(latest.spent||0);
-    emp.currentRemaining=Number(latest.remaining||Math.max(0,emp.ceiling-emp.currentSpent));
-  }
+  // The dashboard totals are cumulative, not the latest transaction only.
+  // For employee 00155, for example: 1222 + 534 + 182 = 1938.
+  const totalAmount = records.reduce(function(sum, r){
+    return sum + Number(r.value || 0);
+  }, 0);
+
+  const totalPaid = records.reduce(function(sum, r){
+    return sum + Number(r.spent || 0);
+  }, 0);
+
+  emp.recordedTotal = totalAmount;
+  emp.currentSpent = totalPaid;
+  emp.currentRemaining = Math.max(0, Number(emp.ceiling || 10000) - totalPaid);
+  emp.transactionCount = records.length;
+
   return emp;
 }
 
